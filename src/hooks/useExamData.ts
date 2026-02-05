@@ -2,26 +2,69 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import { Tecnica, Variacao, Conteudo, TecnicaComStatus, Status, Categoria } from '@/types';
+import { examRequirements } from '@/data/examRequirements';
 
 export function useExamData() {
+    const { user } = useAuth();
     const [tecnicas, setTecnicas] = useState<Tecnica[]>([]);
     const [variacoes, setVariacoes] = useState<Variacao[]>([]);
     const [conteudos, setConteudos] = useState<Conteudo[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
 
+    // Inicializar técnicas para novo usuário
+    const initializeTecnicas = useCallback(async (userId: string) => {
+        const tecnicasToInsert = examRequirements.map(t => ({
+            id: `${userId}-${t.id}`,
+            nome: t.nome,
+            categoria: t.categoria,
+            qtd_exigida: t.qtdExigida === null ? null : String(t.qtdExigida),
+            observacoes: '',
+            status_manual: 'nao_sei',
+            user_id: userId,
+        }));
+
+        await supabase.from('tecnicas').insert(tecnicasToInsert);
+        return tecnicasToInsert;
+    }, []);
+
     // Carregar dados do Supabase
     useEffect(() => {
+        if (!user) {
+            setIsLoaded(true);
+            return;
+        }
+
+        const userId = user.id;
+
         async function loadData() {
             try {
-                const [tecnicasRes, variacoesRes, conteudosRes] = await Promise.all([
-                    supabase.from('tecnicas').select('*').order('id'),
-                    supabase.from('variacoes').select('*'),
-                    supabase.from('conteudos').select('*'),
+                // Buscar técnicas do usuário
+                let { data: tecnicasData } = await supabase
+                    .from('tecnicas')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('id');
+
+                // Se não tem técnicas, inicializar
+                if (!tecnicasData || tecnicasData.length === 0) {
+                    await initializeTecnicas(userId);
+                    const { data: newTecnicas } = await supabase
+                        .from('tecnicas')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .order('id');
+                    tecnicasData = newTecnicas;
+                }
+
+                const [variacoesRes, conteudosRes] = await Promise.all([
+                    supabase.from('variacoes').select('*').eq('user_id', userId),
+                    supabase.from('conteudos').select('*').eq('user_id', userId),
                 ]);
 
-                if (tecnicasRes.data) {
-                    setTecnicas(tecnicasRes.data.map(t => ({
+                if (tecnicasData) {
+                    setTecnicas(tecnicasData.map(t => ({
                         id: t.id,
                         nome: t.nome,
                         categoria: t.categoria as Categoria,
@@ -60,7 +103,8 @@ export function useExamData() {
         }
 
         loadData();
-    }, []);
+    }, [user, initializeTecnicas]);
+
 
     // Calcular status de uma técnica
     const calcularStatusTecnica = useCallback((tecnica: Tecnica): TecnicaComStatus => {
@@ -119,6 +163,8 @@ export function useExamData() {
 
     // Adicionar variação
     const addVariacao = useCallback(async (variacao: Omit<Variacao, 'id'>) => {
+        if (!user) return;
+
         const id = Date.now().toString();
         const newVariacao: Variacao = { ...variacao, id };
 
@@ -130,8 +176,9 @@ export function useExamData() {
             nome: variacao.nome,
             status: variacao.status,
             observacoes: variacao.observacoes,
+            user_id: user.id,
         });
-    }, []);
+    }, [user]);
 
     // Atualizar variação
     const updateVariacao = useCallback(async (id: string, updates: Partial<Variacao>) => {
@@ -169,6 +216,8 @@ export function useExamData() {
 
     // Adicionar conteúdo
     const addConteudo = useCallback(async (conteudo: Omit<Conteudo, 'id'>) => {
+        if (!user) return;
+
         const id = Date.now().toString();
         const newConteudo: Conteudo = { ...conteudo, id };
 
@@ -182,8 +231,9 @@ export function useExamData() {
             plataforma: conteudo.plataforma,
             tipo: conteudo.tipo,
             observacoes: conteudo.observacoes,
+            user_id: user.id,
         });
-    }, []);
+    }, [user]);
 
     // Remover conteúdo
     const removeConteudo = useCallback(async (id: string) => {
@@ -203,11 +253,11 @@ export function useExamData() {
             dominadas,
             aprendendo,
             pendentes: total - dominadas - aprendendo,
-            percentual: Math.round((dominadas / total) * 100),
+            percentual: total > 0 ? Math.round((dominadas / total) * 100) : 0,
         };
     }, [getTecnicasComStatus]);
 
-    // Exportar dados (backup)
+    // Exportar dados
     const exportData = useCallback(() => {
         const data = { tecnicas, variacoes, conteudos };
         const json = JSON.stringify(data, null, 2);
@@ -220,20 +270,10 @@ export function useExamData() {
         URL.revokeObjectURL(url);
     }, [tecnicas, variacoes, conteudos]);
 
-    // Importar dados
+    // Importar dados (placeholder)
     const importData = useCallback((jsonString: string) => {
-        try {
-            const imported = JSON.parse(jsonString);
-            if (imported.tecnicas && imported.variacoes && imported.conteudos) {
-                // Para import, seria necessário sincronizar com Supabase
-                // Por enquanto, apenas log
-                console.log('Import de dados requer sincronização manual com Supabase');
-                return false;
-            }
-            return false;
-        } catch {
-            return false;
-        }
+        console.log('Import requer implementação manual', jsonString);
+        return false;
     }, []);
 
     return {

@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useExamData } from '@/hooks/useExamData';
+import { AuthGuard } from '@/components/AuthGuard';
 import { VariacaoItem, AddVariacaoForm } from '@/components/VariacaoItem';
 import { VideoEmbed, AddConteudoForm } from '@/components/VideoEmbed';
 import { Status } from '@/types';
@@ -13,7 +14,7 @@ const statusConfig = {
     dominada: { icon: '🟢', label: 'Dominada', className: 'status-dominada' },
 };
 
-export default function TecnicaPage() {
+function TecnicaContent() {
     const params = useParams();
     const router = useRouter();
     const id = params.id as string;
@@ -95,7 +96,6 @@ export default function TecnicaPage() {
                 <p className="tecnica-qtd-info">{getQtdLabel()}</p>
             </header>
 
-            {/* Status manual para Fundamento teórico */}
             {isFundamentoTeorico && (
                 <section className="section">
                     <h2>Status</h2>
@@ -114,7 +114,6 @@ export default function TecnicaPage() {
                 </section>
             )}
 
-            {/* Observações da técnica */}
             <section className="section">
                 <h2>Observações</h2>
                 {editingObs ? (
@@ -144,7 +143,6 @@ export default function TecnicaPage() {
                 )}
             </section>
 
-            {/* Variações (não mostra para Fundamento teórico) */}
             {!isFundamentoTeorico && (
                 <section className="section">
                     <div className="section-header">
@@ -182,7 +180,6 @@ export default function TecnicaPage() {
                 </section>
             )}
 
-            {/* Conteúdos gerais da técnica */}
             <section className="section">
                 <div className="section-header">
                     <h2>Conteúdos da Técnica ({conteudosTecnica.length})</h2>
@@ -220,5 +217,13 @@ export default function TecnicaPage() {
                 )}
             </section>
         </main>
+    );
+}
+
+export default function TecnicaPage() {
+    return (
+        <AuthGuard>
+            <TecnicaContent />
+        </AuthGuard>
     );
 }

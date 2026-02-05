@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useExamData } from '@/hooks/useExamData';
+import { useAuth } from '@/hooks/useAuth';
+import { AuthGuard } from '@/components/AuthGuard';
 import { TecnicaCard } from '@/components/TecnicaCard';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ExportImport } from '@/components/ExportImport';
@@ -9,8 +11,9 @@ import { Categoria } from '@/types';
 
 const categorias: Categoria[] = ['Fundamento', 'Raspagem', 'Finalização', 'Defesa', 'Passagem', 'Saída'];
 
-export default function Home() {
+function HomeContent() {
   const { isLoaded, getTecnicasComStatus, getProgressoGeral, exportData, importData } = useExamData();
+  const { user, signOut } = useAuth();
   const [filtroCategoria, setFiltroCategoria] = useState<Categoria | 'todas'>('todas');
 
   if (!isLoaded) {
@@ -34,8 +37,15 @@ export default function Home() {
       <header className="header">
         <div className="header-top">
           <h1>🥋 Exame Faixa Azul</h1>
-          <ExportImport onExport={exportData} onImport={importData} />
+          <div className="header-actions">
+            <ExportImport onExport={exportData} onImport={importData} />
+            <button className="btn-secondary btn-small" onClick={signOut}>
+              Sair
+            </button>
+          </div>
         </div>
+
+        <p className="user-email">{user?.email}</p>
 
         <div className="progresso-geral">
           <div className="progresso-stats">
@@ -98,5 +108,13 @@ export default function Home() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthGuard>
+      <HomeContent />
+    </AuthGuard>
   );
 }
