@@ -4,15 +4,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useExamData } from '@/hooks/useExamData';
 import { AuthGuard } from '@/components/AuthGuard';
-import { VariacaoItem, AddVariacaoForm } from '@/components/VariacaoItem';
+import { SidePanel } from '@/components/SidePanel';
 import { VideoEmbed, AddConteudoForm } from '@/components/VideoEmbed';
-import { Status } from '@/types';
-
-const statusConfig = {
-    nao_sei: { icon: '🔴', label: 'Não sei', className: 'status-nao-sei' },
-    aprendendo: { icon: '🟡', label: 'Aprendendo', className: 'status-aprendendo' },
-    dominada: { icon: '🟢', label: 'Dominada', className: 'status-dominada' },
-};
 
 function TecnicaContent() {
     const params = useParams();
@@ -33,10 +26,7 @@ function TecnicaContent() {
         removeConteudo,
     } = useExamData();
 
-    const [showAddVariacao, setShowAddVariacao] = useState(false);
     const [showAddConteudo, setShowAddConteudo] = useState(false);
-    const [editingObs, setEditingObs] = useState(false);
-    const [obsValue, setObsValue] = useState('');
 
     if (!isLoaded) {
         return <div className="loading">Carregando...</div>;
@@ -55,168 +45,106 @@ function TecnicaContent() {
 
     const variacoes = getVariacoes(id);
     const conteudosTecnica = getConteudos(id);
-    const config = statusConfig[tecnica.status];
-    const isFundamentoTeorico = tecnica.qtdExigida === null;
-
-    const handleAddVariacao = (nome: string) => {
-        addVariacao({
-            tecnicaId: id,
-            nome,
-            status: 'nao_sei',
-            observacoes: '',
-        });
-        setShowAddVariacao(false);
-    };
-
-    const handleSaveObs = () => {
-        updateTecnicaObservacoes(id, obsValue);
-        setEditingObs(false);
-    };
-
-    const getQtdLabel = () => {
-        if (tecnica.qtdExigida === null) return 'Conteúdo teórico';
-        if (tecnica.qtdExigida === 'TODOS') return `Exigido: TODAS as variações (${tecnica.variacoesDominadas}/${tecnica.totalVariacoes})`;
-        return `Exigido: ${tecnica.qtdExigida} variação(ões) - Dominadas: ${tecnica.variacoesDominadas}`;
-    };
 
     return (
-        <main className="container">
-            <button className="btn-back" onClick={() => router.push('/')}>
-                ← Voltar
-            </button>
+        <div className="tecnica-layout">
+            {/* Área Principal (Esquerda) */}
+            <main className="main-content">
+                <button className="btn-back" onClick={() => router.push('/')}>
+                    ← Voltar ao Dashboard
+                </button>
 
-            <header className="tecnica-header">
-                <div className="tecnica-status-badge">
-                    <span className={`status-badge ${config.className}`}>
-                        {config.icon} {config.label}
-                    </span>
-                    <span className="tecnica-categoria">{tecnica.categoria}</span>
-                </div>
-                <h1>{tecnica.nome}</h1>
-                <p className="tecnica-qtd-info">{getQtdLabel()}</p>
-            </header>
-
-            {isFundamentoTeorico && (
-                <section className="section">
-                    <h2>Status</h2>
-                    <p className="info-text">Esta é uma técnica teórica. Marque o status manualmente:</p>
-                    <div className="status-manual-buttons">
-                        {(['nao_sei', 'aprendendo', 'dominada'] as Status[]).map((status) => (
-                            <button
-                                key={status}
-                                className={`status-btn-large ${tecnica.status === status ? 'active' : ''} ${statusConfig[status].className}`}
-                                onClick={() => updateTecnicaStatusManual(id, status)}
-                            >
-                                {statusConfig[status].icon} {statusConfig[status].label}
-                            </button>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            <section className="section">
-                <h2>Observações</h2>
-                {editingObs ? (
-                    <div className="obs-edit">
-                        <textarea
-                            value={obsValue}
-                            onChange={(e) => setObsValue(e.target.value)}
-                            placeholder="Anotações pessoais sobre esta técnica..."
-                            rows={3}
-                            autoFocus
-                        />
-                        <div className="obs-actions">
-                            <button className="btn-secondary" onClick={() => setEditingObs(false)}>Cancelar</button>
-                            <button className="btn-primary" onClick={handleSaveObs}>Salvar</button>
-                        </div>
-                    </div>
-                ) : (
-                    <p
-                        className="obs-text clickable"
-                        onClick={() => {
-                            setObsValue(tecnica.observacoes);
-                            setEditingObs(true);
-                        }}
-                    >
-                        {tecnica.observacoes || 'Clique para adicionar observações...'}
+                <header className="main-header">
+                    <h1>{tecnica.nome}</h1>
+                    <p className="main-subtitle">
+                        {tecnica.qtdExigida === null
+                            ? 'Conteúdo teórico para estudo e revisão'
+                            : `Estude as variações e marque seu progresso no painel lateral`
+                        }
                     </p>
-                )}
-            </section>
+                </header>
 
-            {!isFundamentoTeorico && (
-                <section className="section">
+                {/* Seção de Vídeos Principais */}
+                <section className="content-section">
                     <div className="section-header">
-                        <h2>Variações ({variacoes.length})</h2>
-                        <button className="btn-primary" onClick={() => setShowAddVariacao(true)}>
-                            + Adicionar
+                        <h2>📺 Conteúdos de Estudo</h2>
+                        <button
+                            className="btn-primary"
+                            onClick={() => setShowAddConteudo(true)}
+                        >
+                            + Adicionar Vídeo
                         </button>
                     </div>
 
-                    {showAddVariacao && (
-                        <AddVariacaoForm
-                            onAdd={handleAddVariacao}
-                            onCancel={() => setShowAddVariacao(false)}
+                    {showAddConteudo && (
+                        <AddConteudoForm
+                            onAdd={(data) => {
+                                addConteudo({ ...data, tecnicaId: id });
+                                setShowAddConteudo(false);
+                            }}
+                            onCancel={() => setShowAddConteudo(false)}
                         />
                     )}
 
-                    {variacoes.length === 0 ? (
-                        <p className="empty-text">Nenhuma variação cadastrada. Adicione a primeira!</p>
+                    {conteudosTecnica.length === 0 ? (
+                        <div className="empty-state">
+                            <p>Nenhum vídeo adicionado ainda.</p>
+                            <p className="hint">Adicione vídeos do YouTube ou TikTok para estudar esta técnica.</p>
+                        </div>
                     ) : (
-                        <div className="variacoes-lista">
-                            {variacoes.map((v) => (
-                                <VariacaoItem
-                                    key={v.id}
-                                    variacao={v}
-                                    conteudos={getConteudos(undefined, v.id)}
-                                    onUpdateStatus={(status) => updateVariacao(v.id, { status })}
-                                    onUpdateObservacoes={(obs) => updateVariacao(v.id, { observacoes: obs })}
-                                    onRemove={() => removeVariacao(v.id)}
-                                    onAddConteudo={(data) => addConteudo({ ...data, variacaoId: v.id })}
-                                    onRemoveConteudo={removeConteudo}
+                        <div className="videos-grid">
+                            {conteudosTecnica.map((c) => (
+                                <VideoEmbed
+                                    key={c.id}
+                                    conteudo={c}
+                                    onRemove={() => removeConteudo(c.id)}
                                 />
                             ))}
                         </div>
                     )}
                 </section>
-            )}
 
-            <section className="section">
-                <div className="section-header">
-                    <h2>Conteúdos da Técnica ({conteudosTecnica.length})</h2>
-                    <button className="btn-primary" onClick={() => setShowAddConteudo(true)}>
-                        + Adicionar
-                    </button>
-                </div>
-
-                <p className="info-text">
-                    Vídeos e links sobre a técnica em geral (não específicos de uma variação).
-                </p>
-
-                {showAddConteudo && (
-                    <AddConteudoForm
-                        onAdd={(data) => {
-                            addConteudo({ ...data, tecnicaId: id });
-                            setShowAddConteudo(false);
-                        }}
-                        onCancel={() => setShowAddConteudo(false)}
-                    />
-                )}
-
-                {conteudosTecnica.length === 0 ? (
-                    <p className="empty-text">Nenhum conteúdo cadastrado para esta técnica.</p>
-                ) : (
-                    <div className="conteudos-grid">
-                        {conteudosTecnica.map((c) => (
-                            <VideoEmbed
-                                key={c.id}
-                                conteudo={c}
-                                onRemove={() => removeConteudo(c.id)}
-                            />
-                        ))}
+                {/* Área de Estudo/Revisão */}
+                <section className="content-section">
+                    <h2>📝 Área de Estudo</h2>
+                    <div className="study-area">
+                        <p className="study-placeholder">
+                            Use esta área para fazer anotações, revisar conceitos e praticar mentalmente a técnica.
+                        </p>
+                        {tecnica.qtdExigida !== null && (
+                            <div className="study-tips">
+                                <h4>Dicas:</h4>
+                                <ul>
+                                    <li>Assista os vídeos com atenção aos detalhes</li>
+                                    <li>Marque as variações que já domina no painel lateral</li>
+                                    <li>Pratique cada variação até se sentir confiante</li>
+                                </ul>
+                            </div>
+                        )}
                     </div>
-                )}
-            </section>
-        </main>
+                </section>
+            </main>
+
+            {/* Painel Lateral (Direita) */}
+            <SidePanel
+                tecnica={tecnica}
+                variacoes={variacoes}
+                getConteudos={getConteudos}
+                onUpdateVariacaoStatus={(vId, status) => updateVariacao(vId, { status })}
+                onUpdateVariacaoObservacoes={(vId, obs) => updateVariacao(vId, { observacoes: obs })}
+                onRemoveVariacao={removeVariacao}
+                onAddVariacao={(nome) => addVariacao({
+                    tecnicaId: id,
+                    nome,
+                    status: 'nao_sei',
+                    observacoes: '',
+                })}
+                onAddConteudo={addConteudo}
+                onRemoveConteudo={removeConteudo}
+                onUpdateTecnicaStatusManual={tecnica.qtdExigida === null ? (status) => updateTecnicaStatusManual(id, status) : undefined}
+                onUpdateObservacoes={(obs) => updateTecnicaObservacoes(id, obs)}
+            />
+        </div>
     );
 }
 
