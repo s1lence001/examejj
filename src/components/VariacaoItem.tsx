@@ -1,6 +1,6 @@
 'use client';
 
-import { Variacao, Status, Conteudo } from '@/types';
+import { Variacao, Status, Conteudo, Plataforma, TipoConteudo } from '@/types';
 import { useState } from 'react';
 import { VideoEmbed, AddConteudoForm } from './VideoEmbed';
 
@@ -10,7 +10,7 @@ interface VariacaoItemProps {
     onUpdateStatus: (status: Status) => void;
     onUpdateObservacoes: (obs: string) => void;
     onRemove: () => void;
-    onAddConteudo: (data: { url: string; plataforma: 'youtube' | 'tiktok'; tipo: 'didatico' | 'ajuste_fino' | 'variacao'; observacoes: string }) => void;
+    onAddConteudo: (data: { titulo: string; url: string; plataforma: Plataforma; tipo: TipoConteudo; observacoes: string }) => void;
     onRemoveConteudo: (id: string) => void;
 }
 
