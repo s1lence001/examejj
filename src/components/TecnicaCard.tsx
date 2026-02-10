@@ -1,15 +1,16 @@
 import Link from 'next/link';
 import { TecnicaComStatus } from '@/types';
 import { ProgressBar } from './ProgressBar';
+import { StatusIcon } from './StatusIcon';
 
 interface TecnicaCardProps {
     tecnica: TecnicaComStatus;
 }
 
 const statusConfig = {
-    nao_sei: { icon: '🔴', className: 'status-nao-sei' },
-    aprendendo: { icon: '🟡', className: 'status-aprendendo' },
-    dominada: { icon: '🟢', className: 'status-dominada' },
+    nao_sei: { className: 'status-nao-sei' },
+    aprendendo: { className: 'status-aprendendo' },
+    dominada: { className: 'status-dominada' },
 };
 
 export function TecnicaCard({ tecnica }: TecnicaCardProps) {
@@ -32,7 +33,9 @@ export function TecnicaCard({ tecnica }: TecnicaCardProps) {
     return (
         <Link href={`/tecnica/${tecnica.id}`} className={`tecnica-card ${config.className}`}>
             <div className="tecnica-card-header">
-                <span className="status-icon">{config.icon}</span>
+                <span className="status-icon">
+                    <StatusIcon status={tecnica.status} size={18} />
+                </span>
                 <span className="tecnica-nome">{tecnica.nome}</span>
             </div>
 

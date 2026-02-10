@@ -4,7 +4,7 @@ export type Categoria = 'Raspagem' | 'Finalização' | 'Defesa' | 'Passagem' | '
 
 export type Status = 'nao_sei' | 'aprendendo' | 'dominada';
 
-export type Plataforma = 'youtube' | 'tiktok';
+export type Plataforma = 'youtube' | 'tiktok' | 'instagram' | 'outro';
 
 export type TipoConteudo = 'didatico' | 'ajuste_fino' | 'variacao';
 
@@ -28,11 +28,13 @@ export interface Variacao {
   observacoes: string;
 }
 
-// Conteúdo - pode pertencer a técnica OU variação
+// Conteúdo - pode pertencer a técnica, variação OU grupo
 export interface Conteudo {
   id: string;
   tecnicaId?: string;
   variacaoId?: string;
+  grupoId?: string; // Novo: para sistema de grupos
+  titulo?: string; // Nome/título do conteúdo (ex: "Queda Osoto Gari")
   url: string;
   plataforma: Plataforma;
   tipo: TipoConteudo;

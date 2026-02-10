@@ -1,17 +1,39 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Tecnica, Variacao, Conteudo, TecnicaComStatus, Status, Categoria } from '@/types';
 import { examRequirements } from '@/data/examRequirements';
 
-export function useExamData() {
+interface ExamDataContextType {
+    isLoaded: boolean;
+    getTecnicasComStatus: () => TecnicaComStatus[];
+    getTecnica: (id: string) => TecnicaComStatus | undefined;
+    getVariacoes: (tecnicaId: string) => Variacao[];
+    getConteudos: (tecnicaId?: string, variacaoId?: string) => Conteudo[];
+    addVariacao: (variacao: Omit<Variacao, 'id'>) => void;
+    updateVariacao: (id: string, updates: Partial<Variacao>) => void;
+    removeVariacao: (id: string) => void;
+    updateTecnicaStatusManual: (tecnicaId: string, status: Status) => void;
+    updateTecnicaObservacoes: (tecnicaId: string, observacoes: string) => void;
+    addConteudo: (conteudo: Omit<Conteudo, 'id'>) => void;
+    updateConteudo: (id: string, updates: Partial<Conteudo>) => void;
+    removeConteudo: (id: string) => void;
+    getProgressoGeral: () => { dominadas: number; aprendendo: number; pendentes: number; total: number; percentual: number };
+    exportData: () => void;
+    importData: (jsonString: string) => boolean;
+}
+
+const ExamDataContext = createContext<ExamDataContextType | null>(null);
+
+export function ExamDataProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
     const [tecnicas, setTecnicas] = useState<Tecnica[]>([]);
     const [variacoes, setVariacoes] = useState<Variacao[]>([]);
     const [conteudos, setConteudos] = useState<Conteudo[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
     // Inicializar técnicas para novo usuário
     const initializeTecnicas = useCallback(async (userId: string) => {
@@ -29,10 +51,15 @@ export function useExamData() {
         return tecnicasToInsert;
     }, []);
 
-    // Carregar dados do Supabase
+    // Carregar dados do Supabase - apenas quando user mudar ou primeira vez
     useEffect(() => {
         if (!user) {
             setIsLoaded(true);
+            return;
+        }
+
+        // Se já carregou para este usuário, não recarrega
+        if (hasLoadedOnce && tecnicas.length > 0) {
             return;
         }
 
@@ -79,7 +106,7 @@ export function useExamData() {
                         id: v.id,
                         tecnicaId: v.tecnica_id,
                         nome: v.nome,
-                        status: v.status as Status,
+                        status: (v.status || 'nao_sei') as Status,
                         observacoes: v.observacoes || '',
                     })));
                 }
@@ -89,12 +116,15 @@ export function useExamData() {
                         id: c.id,
                         tecnicaId: c.tecnica_id,
                         variacaoId: c.variacao_id,
+                        titulo: c.titulo || '',
+                        tipo: c.tipo,
+                        plataforma: c.plataforma,
                         url: c.url,
-                        plataforma: c.plataforma as 'youtube' | 'tiktok',
-                        tipo: c.tipo as 'didatico' | 'ajuste_fino' | 'variacao',
                         observacoes: c.observacoes || '',
                     })));
                 }
+
+                setHasLoadedOnce(true);
             } catch (error) {
                 console.error('Erro ao carregar dados:', error);
             } finally {
@@ -103,8 +133,7 @@ export function useExamData() {
         }
 
         loadData();
-    }, [user, initializeTecnicas]);
-
+    }, [user, initializeTecnicas, hasLoadedOnce, tecnicas.length]);
 
     // Calcular status de uma técnica
     const calcularStatusTecnica = useCallback((tecnica: Tecnica): TecnicaComStatus => {
@@ -141,7 +170,31 @@ export function useExamData() {
     }, [variacoes]);
 
     const getTecnicasComStatus = useCallback((): TecnicaComStatus[] => {
-        return tecnicas.map(calcularStatusTecnica);
+        // Ordenar por categoria (ordem da sidebar) e depois por número do ID
+        const categoriaOrder: Categoria[] = [
+            'Fundamento',
+            'Raspagem',
+            'Passagem',
+            'Finalização',
+            'Defesa',
+            'Saída'
+        ];
+
+        const ordenadas = [...tecnicas].sort((a, b) => {
+            const catIndexA = categoriaOrder.indexOf(a.categoria);
+            const catIndexB = categoriaOrder.indexOf(b.categoria);
+
+            if (catIndexA !== catIndexB) {
+                return catIndexA - catIndexB;
+            }
+
+            // Mesma categoria: ordenar por número do ID
+            const numA = parseInt(a.id.split('-').pop() || '0');
+            const numB = parseInt(b.id.split('-').pop() || '0');
+            return numA - numB;
+        });
+
+        return ordenadas.map(calcularStatusTecnica);
     }, [tecnicas, calcularStatusTecnica]);
 
     const getTecnica = useCallback((id: string): TecnicaComStatus | undefined => {
@@ -157,17 +210,17 @@ export function useExamData() {
         return conteudos.filter(c => {
             if (variacaoId) return c.variacaoId === variacaoId;
             if (tecnicaId) return c.tecnicaId === tecnicaId && !c.variacaoId;
-            return false;
+            return true;
         });
     }, [conteudos]);
 
-    // Adicionar variação
+    // Mutations with optimistic updates
     const addVariacao = useCallback(async (variacao: Omit<Variacao, 'id'>) => {
         if (!user) return;
-
         const id = Date.now().toString();
         const newVariacao: Variacao = { ...variacao, id };
 
+        // Optimistic update
         setVariacoes(prev => [...prev, newVariacao]);
 
         await supabase.from('variacoes').insert({
@@ -180,8 +233,8 @@ export function useExamData() {
         });
     }, [user]);
 
-    // Atualizar variação
     const updateVariacao = useCallback(async (id: string, updates: Partial<Variacao>) => {
+        // Optimistic update
         setVariacoes(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
 
         const dbUpdates: Record<string, unknown> = {};
@@ -192,67 +245,86 @@ export function useExamData() {
         await supabase.from('variacoes').update(dbUpdates).eq('id', id);
     }, []);
 
-    // Remover variação
     const removeVariacao = useCallback(async (id: string) => {
+        // Optimistic update
         setVariacoes(prev => prev.filter(v => v.id !== id));
         setConteudos(prev => prev.filter(c => c.variacaoId !== id));
 
         await supabase.from('variacoes').delete().eq('id', id);
     }, []);
 
-    // Atualizar status manual de técnica
-    const updateTecnicaStatusManual = useCallback(async (id: string, status: Status) => {
-        setTecnicas(prev => prev.map(t => t.id === id ? { ...t, statusManual: status } : t));
+    const updateTecnicaStatusManual = useCallback(async (tecnicaId: string, status: Status) => {
+        // Optimistic update
+        setTecnicas(prev => prev.map(t =>
+            t.id === tecnicaId ? { ...t, statusManual: status } : t
+        ));
 
-        await supabase.from('tecnicas').update({ status_manual: status }).eq('id', id);
+        await supabase.from('tecnicas').update({ status_manual: status }).eq('id', tecnicaId);
     }, []);
 
-    // Atualizar observações da técnica
-    const updateTecnicaObservacoes = useCallback(async (id: string, observacoes: string) => {
-        setTecnicas(prev => prev.map(t => t.id === id ? { ...t, observacoes } : t));
+    const updateTecnicaObservacoes = useCallback(async (tecnicaId: string, observacoes: string) => {
+        // Optimistic update
+        setTecnicas(prev => prev.map(t =>
+            t.id === tecnicaId ? { ...t, observacoes } : t
+        ));
 
-        await supabase.from('tecnicas').update({ observacoes }).eq('id', id);
+        await supabase.from('tecnicas').update({ observacoes }).eq('id', tecnicaId);
     }, []);
 
-    // Adicionar conteúdo
     const addConteudo = useCallback(async (conteudo: Omit<Conteudo, 'id'>) => {
         if (!user) return;
-
         const id = Date.now().toString();
         const newConteudo: Conteudo = { ...conteudo, id };
 
+        // Optimistic update
         setConteudos(prev => [...prev, newConteudo]);
 
         await supabase.from('conteudos').insert({
             id,
-            tecnica_id: conteudo.tecnicaId || null,
-            variacao_id: conteudo.variacaoId || null,
-            url: conteudo.url,
-            plataforma: conteudo.plataforma,
+            tecnica_id: conteudo.tecnicaId,
+            variacao_id: conteudo.variacaoId,
+            titulo: conteudo.titulo || '',
             tipo: conteudo.tipo,
-            observacoes: conteudo.observacoes,
+            plataforma: conteudo.plataforma,
+            url: conteudo.url,
+            observacoes: conteudo.observacoes || '',
             user_id: user.id,
         });
     }, [user]);
 
-    // Remover conteúdo
     const removeConteudo = useCallback(async (id: string) => {
+        // Optimistic update
         setConteudos(prev => prev.filter(c => c.id !== id));
 
         await supabase.from('conteudos').delete().eq('id', id);
     }, []);
 
-    // Calcular progresso geral
+    const updateConteudo = useCallback(async (id: string, updates: Partial<Conteudo>) => {
+        // Optimistic update
+        setConteudos(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+
+        const dbUpdates: Record<string, unknown> = {};
+        if (updates.titulo !== undefined) dbUpdates.titulo = updates.titulo;
+        if (updates.observacoes !== undefined) dbUpdates.observacoes = updates.observacoes;
+        if (updates.url !== undefined) dbUpdates.url = updates.url;
+        if (updates.tipo !== undefined) dbUpdates.tipo = updates.tipo;
+        if (updates.plataforma !== undefined) dbUpdates.plataforma = updates.plataforma;
+
+        await supabase.from('conteudos').update(dbUpdates).eq('id', id);
+    }, []);
+
     const getProgressoGeral = useCallback(() => {
-        const tecs = getTecnicasComStatus();
-        const total = tecs.length;
-        const dominadas = tecs.filter(t => t.status === 'dominada').length;
-        const aprendendo = tecs.filter(t => t.status === 'aprendendo').length;
+        const tecnicasComStatus = getTecnicasComStatus();
+        const dominadas = tecnicasComStatus.filter(t => t.status === 'dominada').length;
+        const aprendendo = tecnicasComStatus.filter(t => t.status === 'aprendendo').length;
+        const pendentes = tecnicasComStatus.filter(t => t.status === 'nao_sei').length;
+        const total = tecnicasComStatus.length;
+
         return {
-            total,
             dominadas,
             aprendendo,
-            pendentes: total - dominadas - aprendendo,
+            pendentes,
+            total,
             percentual: total > 0 ? Math.round((dominadas / total) * 100) : 0,
         };
     }, [getTecnicasComStatus]);
@@ -276,21 +348,34 @@ export function useExamData() {
         return false;
     }, []);
 
-    return {
-        isLoaded,
-        getTecnicasComStatus,
-        getTecnica,
-        getVariacoes,
-        getConteudos,
-        addVariacao,
-        updateVariacao,
-        removeVariacao,
-        updateTecnicaStatusManual,
-        updateTecnicaObservacoes,
-        addConteudo,
-        removeConteudo,
-        getProgressoGeral,
-        exportData,
-        importData,
-    };
+    return (
+        <ExamDataContext.Provider value={{
+            isLoaded,
+            getTecnicasComStatus,
+            getTecnica,
+            getVariacoes,
+            getConteudos,
+            addVariacao,
+            updateVariacao,
+            removeVariacao,
+            updateTecnicaStatusManual,
+            updateTecnicaObservacoes,
+            addConteudo,
+            updateConteudo,
+            removeConteudo,
+            getProgressoGeral,
+            exportData,
+            importData,
+        }}>
+            {children}
+        </ExamDataContext.Provider>
+    );
+}
+
+export function useExamData() {
+    const context = useContext(ExamDataContext);
+    if (!context) {
+        throw new Error('useExamData deve ser usado dentro de ExamDataProvider');
+    }
+    return context;
 }

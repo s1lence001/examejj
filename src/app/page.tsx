@@ -7,6 +7,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { TecnicaCard } from '@/components/TecnicaCard';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ExportImport } from '@/components/ExportImport';
+import { JiuJitsuLogo } from '@/components/StatusIcon';
 import { Categoria } from '@/types';
 
 const categorias: Categoria[] = ['Fundamento', 'Raspagem', 'Finalização', 'Defesa', 'Passagem', 'Saída'];
@@ -17,7 +18,7 @@ function HomeContent() {
   const [filtroCategoria, setFiltroCategoria] = useState<Categoria | 'todas'>('todas');
 
   if (!isLoaded) {
-    return <div className="loading">Carregando...</div>;
+    return <div className="loading">Carregando dados...</div>;
   }
 
   const tecnicas = getTecnicasComStatus();
@@ -33,10 +34,10 @@ function HomeContent() {
   })).filter(g => g.tecnicas.length > 0);
 
   return (
-    <main className="container">
+    <main className="container animate-fadeIn">
       <header className="header">
         <div className="header-top">
-          <h1>🥋 Exame Faixa Azul</h1>
+          <h1 className="logo-title"><JiuJitsuLogo size={28} className="logo-icon" /> Exame Faixa Azul</h1>
           <div className="header-actions">
             <ExportImport onExport={exportData} onImport={importData} />
             <button className="btn-secondary btn-small" onClick={signOut}>

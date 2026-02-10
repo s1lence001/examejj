@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { DownloadIcon, UploadIcon } from './StatusIcon';
 
 interface ExportImportProps {
     onExport: () => void;
@@ -43,12 +44,13 @@ export function ExportImport({ onExport, onImport }: ExportImportProps) {
                 accept=".json"
                 style={{ display: 'none' }}
             />
-            <button className="btn-secondary btn-small" onClick={handleImportClick}>
-                📥 Importar
+            <button className="btn-secondary btn-small btn-with-icon" onClick={handleImportClick}>
+                <DownloadIcon size={14} /> Importar
             </button>
-            <button className="btn-secondary btn-small" onClick={onExport}>
-                📤 Exportar
+            <button className="btn-secondary btn-small btn-with-icon" onClick={onExport}>
+                <UploadIcon size={14} /> Exportar
             </button>
         </div>
     );
 }
+

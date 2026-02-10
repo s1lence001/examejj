@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { TecnicaComStatus, Variacao, Conteudo, Status } from '@/types';
 import { VideoEmbed, AddConteudoForm } from './VideoEmbed';
+import { StatusIcon, ChevronIcon, TrashIcon, PlusIcon, PlayIcon } from './StatusIcon';
 
 const statusConfig = {
-    nao_sei: { icon: '🔴', label: 'Não sei', className: 'status-nao-sei' },
-    aprendendo: { icon: '🟡', label: 'Aprendendo', className: 'status-aprendendo' },
-    dominada: { icon: '🟢', label: 'Dominada', className: 'status-dominada' },
+    nao_sei: { label: 'Não sei', className: 'status-nao-sei' },
+    aprendendo: { label: 'Aprendendo', className: 'status-aprendendo' },
+    dominada: { label: 'Dominada', className: 'status-dominada' },
 };
 
 interface SidePanelProps {
@@ -102,7 +103,7 @@ export function SidePanel({
                     <h2 className="panel-title">{tecnica.nome}</h2>
                     <div className="panel-status-row">
                         <span className={`status-badge ${config.className}`}>
-                            {config.icon} {config.label}
+                            <StatusIcon status={tecnica.status} variant="dot" size={12} /> {config.label}
                         </span>
                         <span className="panel-progress">{getProgressLabel()}</span>
                     </div>
@@ -119,7 +120,7 @@ export function SidePanel({
                                 className={`status-btn-small ${tecnica.status === status ? 'active' : ''} ${statusConfig[status].className}`}
                                 onClick={() => onUpdateTecnicaStatusManual(status)}
                             >
-                                {statusConfig[status].icon}
+                                <StatusIcon status={status} variant="dot" size={16} />
                             </button>
                         ))}
                     </div>
@@ -165,7 +166,9 @@ export function SidePanel({
                             return (
                                 <div key={v.id} className={`variacao-item-compact ${vConfig.className}`}>
                                     <div className="variacao-row" onClick={() => toggleVariacao(v.id)}>
-                                        <span className="variacao-expand-icon">{isExpanded ? '▼' : '▶'}</span>
+                                        <span className="variacao-expand-icon">
+                                            <ChevronIcon direction={isExpanded ? 'down' : 'right'} size={14} />
+                                        </span>
                                         <span className="variacao-name">{v.nome}</span>
                                         <div className="variacao-status-buttons" onClick={(e) => e.stopPropagation()}>
                                             {(['nao_sei', 'aprendendo', 'dominada'] as Status[]).map((status) => (
@@ -175,7 +178,7 @@ export function SidePanel({
                                                     onClick={() => onUpdateVariacaoStatus(v.id, status)}
                                                     title={statusConfig[status].label}
                                                 >
-                                                    {statusConfig[status].icon}
+                                                    <StatusIcon status={status} variant="dot" size={16} />
                                                 </button>
                                             ))}
                                         </div>
