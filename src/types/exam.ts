@@ -16,7 +16,7 @@ export interface ExamRequirement {
     category: RequirementCategory;
 }
 
-export type LearningStatus = 'todo' | 'learning' | 'done';
+export type LearningStatus = 'todo' | 'learning' | 'learned';
 
 export interface MediaItem {
     id: string;

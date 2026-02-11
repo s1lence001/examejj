@@ -31,7 +31,7 @@ import {
 const statusConfig = {
     todo: { label: 'A fazer', color: 'bg-red-500', textColor: 'text-red-500' },
     learning: { label: 'Aprendendo', color: 'bg-yellow-500', textColor: 'text-yellow-500' },
-    done: { label: 'Dominada', color: 'bg-green-500', textColor: 'text-green-500' },
+    learned: { label: 'Dominada', color: 'bg-green-500', textColor: 'text-green-500' },
 };
 
 // Detectar plataforma
@@ -347,7 +347,7 @@ function TecnicaContent() {
                         </div>
 
                         <div className="flex gap-2">
-                            {(['todo', 'learning', 'done'] as LearningStatus[]).map((s) => (
+                            {(['todo', 'learning', 'learned'] as LearningStatus[]).map((s) => (
                                 <Button
                                     key={s}
                                     variant={state.status === s ? "default" : "outline"}

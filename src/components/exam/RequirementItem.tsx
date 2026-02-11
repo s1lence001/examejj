@@ -15,7 +15,7 @@ interface RequirementItemProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string; borderColor: string }> = {
-    done: { label: 'Sei', icon: CheckCircle2, color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
+    learned: { label: 'Sei', icon: CheckCircle2, color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
     learning: { label: 'Aprendendo', icon: Clock, color: 'text-amber-600', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
     todo: { label: 'Não sei', icon: Circle, color: 'text-slate-400', bgColor: 'bg-slate-50', borderColor: 'border-slate-200' },
 };

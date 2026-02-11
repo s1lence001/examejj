@@ -12,7 +12,7 @@ import { CheckCircle2, Clock, Circle, Video, FileText } from 'lucide-react';
 const STATUS_OPTIONS: { value: LearningStatus; label: string; icon: any; color: string }[] = [
     { value: 'todo', label: 'Não sei', icon: Circle, color: 'text-slate-400' },
     { value: 'learning', label: 'Aprendendo', icon: Clock, color: 'text-amber-500' },
-    { value: 'done', label: 'Dominada', icon: CheckCircle2, color: 'text-green-500' },
+    { value: 'learned', label: 'Dominada', icon: CheckCircle2, color: 'text-green-500' },
 ];
 
 export function DetailPanel() {

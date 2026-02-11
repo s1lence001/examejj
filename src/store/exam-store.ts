@@ -549,7 +549,10 @@ export const useExamStore = create<ExamStore>((set, get) => ({
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            await supabase.from('user_folders').delete().eq('id', folderId).eq('user_id', session.user.id);
+            const { error } = await supabase.from('user_folders').delete().eq('id', folderId).eq('user_id', session.user.id);
+            if (error) {
+                console.error('Failed to remove folder:', error);
+            }
         }
     },
 
@@ -559,11 +562,14 @@ export const useExamStore = create<ExamStore>((set, get) => ({
     syncSettings: async (settings: Partial<DBUserGroup> | Record<string, unknown>) => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            await supabase.from('user_settings').upsert({
+            const { error } = await supabase.from('user_settings').upsert({
                 user_id: session.user.id,
                 updated_at: new Date().toISOString(),
                 ...settings
             });
+            if (error) {
+                console.error('Failed to sync settings:', error);
+            }
         }
     }
 }));

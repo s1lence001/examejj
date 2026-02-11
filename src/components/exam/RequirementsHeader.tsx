@@ -9,19 +9,19 @@ export function RequirementsHeader() {
 
     const stats = useMemo(() => {
         const total = requirements.length;
-        let done = 0;
+        let learned = 0;
         let learning = 0;
 
         // Iterate through userState values
         Object.values(userState).forEach(state => {
-            if (state.status === 'done') done++;
+            if (state.status === 'learned') learned++;
             else if (state.status === 'learning') learning++;
         });
 
-        const todo = total - done - learning;
-        const progress = Math.round((done / total) * 100) || 0;
+        const todo = total - learned - learning;
+        const progress = Math.round((learned / total) * 100) || 0;
 
-        return { total, done, learning, todo, progress };
+        return { total, learned, learning, todo, progress };
     }, [requirements, userState]);
 
     return (
@@ -42,14 +42,14 @@ export function RequirementsHeader() {
             <div className="space-y-2">
                 {/* Segmented Progress Bar */}
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                    <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${(stats.done / stats.total) * 100}%` }} />
+                    <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${(stats.learned / stats.total) * 100}%` }} />
                     <div className="bg-amber-400 h-full transition-all duration-500" style={{ width: `${(stats.learning / stats.total) * 100}%` }} />
                 </div>
 
                 <div className="flex gap-4 text-[10px] text-slate-500 font-semibold pt-1">
                     <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                        <span>Sei ({stats.done})</span>
+                        <span>Sei ({stats.learned})</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full bg-amber-400" />
