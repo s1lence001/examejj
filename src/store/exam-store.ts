@@ -75,7 +75,7 @@ interface ExamStore {
     updateMediaNotes: (reqId: number, mediaId: string, notes: string) => void;
     updateMediaChapters: (reqId: number, mediaId: string, chapters: string) => void;
     addMedia: (reqId: number, type: 'video' | 'link', title: string, url: string, folderId?: string, notes?: string, chapters?: string) => void;
-    updateMedia: (reqId: number, mediaId: string, data: { title?: string, url?: string, notes?: string, folderId?: string }) => Promise<void>;
+    updateMedia: (reqId: number, mediaId: string, data: { title?: string, url?: string, notes?: string, chapters?: string, folderId?: string }) => Promise<void>;
     removeMedia: (reqId: number, mediaId: string) => void;
     reorderMedia: (reqId: number, activeId: string, overId: string, folderId?: string) => void;
     createFolder: (reqId: number, name: string) => Promise<string | undefined>;
