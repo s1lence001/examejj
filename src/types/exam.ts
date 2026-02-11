@@ -24,7 +24,9 @@ export interface MediaItem {
     title: string;
     url: string;
     notes?: string;
+    chapters?: string;
     folderId?: string;
+    displayOrder: number;
 }
 
 export interface MediaFolder {

@@ -12,7 +12,7 @@ interface VideoCardProps {
 
 // Extrai ID do YouTube da URL
 function getYouTubeId(url: string): string | null {
-    const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\s]+)/);
+    const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([^&\s?]+)/);
     return match ? match[1] : null;
 }
 

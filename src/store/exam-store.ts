@@ -25,7 +25,9 @@ interface DBUserMedia {
     title: string;
     url: string;
     notes: string | null;
+    chapters: string | null;
     folder_id: string | null;
+    display_order: number;
 }
 
 interface DBUserGroup {
@@ -61,6 +63,7 @@ interface ExamStore {
 
     // Actions - Grouping
     createGroup: (name: string) => void;
+    renameGroup: (groupId: string, name: string) => void;
     ungroup: (groupId: string) => void;
     moveItem: (activeId: string | number, overId: string | number) => void;
     reorderList: (oldIndex: number, newIndex: number) => void;
@@ -70,10 +73,17 @@ interface ExamStore {
     updateStatus: (reqId: number, status: LearningStatus) => void;
     updateNotes: (reqId: number, notes: string) => void;
     updateMediaNotes: (reqId: number, mediaId: string, notes: string) => void;
-    addMedia: (reqId: number, type: 'video' | 'link', title: string, url: string, folderId?: string) => void;
+    updateMediaChapters: (reqId: number, mediaId: string, chapters: string) => void;
+    addMedia: (reqId: number, type: 'video' | 'link', title: string, url: string, folderId?: string, notes?: string, chapters?: string) => void;
+    updateMedia: (reqId: number, mediaId: string, data: { title?: string, url?: string, notes?: string, folderId?: string }) => Promise<void>;
     removeMedia: (reqId: number, mediaId: string) => void;
+    reorderMedia: (reqId: number, activeId: string, overId: string, folderId?: string) => void;
     createFolder: (reqId: number, name: string) => Promise<string | undefined>;
     removeFolder: (reqId: number, folderId: string) => void;
+
+    // Export/Import
+    exportData: () => string;
+    importData: (jsonData: string) => Promise<void>;
 
     // Reset
     reset: () => void;
@@ -154,8 +164,15 @@ export const useExamStore = create<ExamStore>((set, get) => ({
                     title: m.title,
                     url: m.url,
                     notes: m.notes || undefined,
-                    folderId: m.folder_id || undefined
+                    chapters: m.chapters || undefined,
+                    folderId: m.folder_id || undefined,
+                    displayOrder: m.display_order || 0
                 });
+            });
+
+            // Sort media by displayOrder
+            Object.values(userState).forEach(state => {
+                state.media.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
             });
 
             // Reconstruct Groups
@@ -306,6 +323,23 @@ export const useExamStore = create<ExamStore>((set, get) => ({
         }
     },
 
+    renameGroup: async (groupId, name) => {
+        set((state) => ({
+            groups: {
+                ...state.groups,
+                [groupId]: { ...state.groups[groupId], name }
+            }
+        }));
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            const { error } = await supabase.from('user_groups').update({ name }).eq('id', groupId).eq('user_id', session.user.id);
+            if (error) {
+                console.error('Failed to rename group:', error);
+            }
+        }
+    },
+
     ungroup: async (groupId) => {
         const { groups, listOrder } = get();
         const group = groups[groupId];
@@ -329,10 +363,150 @@ export const useExamStore = create<ExamStore>((set, get) => ({
     },
 
     moveItem: (activeId, overId) => {
-        get().reorderList(
-            get().listOrder.indexOf(activeId),
-            get().listOrder.indexOf(overId)
-        );
+        const { listOrder, groups } = get();
+
+        // Helper to find container of an ID
+        const findContainer = (id: string | number) => {
+            if (typeof id === 'number') {
+                for (const gid in groups) {
+                    if (groups[gid].requirementIds.includes(id)) return gid;
+                }
+                return 'root';
+            }
+            // If id is string, it must be a groupId (which is in root)
+            return 'root';
+        };
+
+        const activeContainer = findContainer(activeId);
+        let overContainer = findContainer(overId);
+
+        // DISTINCTION: Dropped requirement (number) ONTO a group header (string)
+        const isDroppedOnGroupHeader = typeof activeId === 'number' && typeof overId === 'string' && groups[overId];
+
+        if (!activeContainer || !overContainer) return;
+
+        // Case 1: Drop on a group header directly -> Add to end of that group
+        if (isDroppedOnGroupHeader) {
+            set((state) => {
+                const newGroups = { ...state.groups };
+                let newListOrder = [...state.listOrder];
+
+                // Remove from old container
+                if (activeContainer === 'root') {
+                    newListOrder = newListOrder.filter(id => id !== activeId);
+                } else {
+                    newGroups[activeContainer] = {
+                        ...newGroups[activeContainer],
+                        requirementIds: newGroups[activeContainer].requirementIds.filter(id => id !== activeId)
+                    };
+                }
+
+                // Add to the end of the target group
+                newGroups[overId] = {
+                    ...newGroups[overId],
+                    requirementIds: [...newGroups[overId].requirementIds, activeId as number]
+                };
+
+                return { groups: newGroups, listOrder: newListOrder };
+            });
+
+            // Sync everything
+            const { listOrder: updatedOrder, groups: updatedGroups } = get();
+            get().syncSettings({ list_order: updatedOrder });
+
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                    if (activeContainer !== 'root') {
+                        supabase.from('user_groups').update({ requirement_ids: updatedGroups[activeContainer].requirementIds }).eq('id', activeContainer).eq('user_id', session.user.id);
+                    }
+                    supabase.from('user_groups').update({ requirement_ids: updatedGroups[overId as string].requirementIds }).eq('id', overId).eq('user_id', session.user.id);
+                }
+            });
+            return;
+        }
+
+        // Case 2: Same container (sorting)
+        if (activeContainer === overContainer) {
+            if (activeContainer === 'root') {
+                get().reorderList(listOrder.indexOf(activeId), listOrder.indexOf(overId));
+            } else {
+                set((state) => {
+                    const group = state.groups[activeContainer];
+                    const newIds = [...group.requirementIds];
+                    const oldIdx = newIds.indexOf(activeId as number);
+                    const newIdx = newIds.indexOf(overId as number);
+                    const [item] = newIds.splice(oldIdx, 1);
+                    newIds.splice(newIdx, 0, item);
+
+                    return {
+                        groups: {
+                            ...state.groups,
+                            [activeContainer]: { ...group, requirementIds: newIds }
+                        }
+                    };
+                });
+                // Sync group
+                const { groups: updatedGroups } = get();
+                const updatedGroup = updatedGroups[activeContainer];
+                supabase.auth.getSession().then(({ data: { session } }) => {
+                    if (session) {
+                        supabase.from('user_groups').update({ requirement_ids: updatedGroup.requirementIds }).eq('id', activeContainer).eq('user_id', session.user.id);
+                    }
+                });
+            }
+        }
+        // Case 3: Move between containers (Requirement A over Requirement B)
+        else {
+            if (typeof activeId === 'string') return; // Groups must stay in root
+
+            set((state) => {
+                const newGroups = { ...state.groups };
+                let newListOrder = [...state.listOrder];
+
+                // Remove from old container
+                if (activeContainer === 'root') {
+                    newListOrder = newListOrder.filter(id => id !== activeId);
+                } else {
+                    newGroups[activeContainer] = {
+                        ...newGroups[activeContainer],
+                        requirementIds: newGroups[activeContainer].requirementIds.filter(id => id !== activeId)
+                    };
+                }
+
+                // Add to new container
+                if (overContainer === 'root') {
+                    const overIdx = newListOrder.indexOf(overId);
+                    newListOrder.splice(overIdx, 0, activeId);
+                } else {
+                    const overIdx = newGroups[overContainer].requirementIds.indexOf(overId as number);
+                    newGroups[overContainer] = {
+                        ...newGroups[overContainer],
+                        requirementIds: [
+                            ...newGroups[overContainer].requirementIds.slice(0, overIdx),
+                            activeId as number,
+                            ...newGroups[overContainer].requirementIds.slice(overIdx)
+                        ]
+                    };
+                }
+
+                return { groups: newGroups, listOrder: newListOrder };
+            });
+
+            // Sync everything
+            const { listOrder: updatedOrder, groups: updatedGroups } = get();
+            get().syncSettings({ list_order: updatedOrder });
+
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                    if (activeContainer !== 'root') {
+                        supabase.from('user_groups').update({ requirement_ids: updatedGroups[activeContainer].requirementIds }).eq('id', activeContainer).eq('user_id', session.user.id);
+                    }
+                    if (overContainer !== 'root') {
+                        supabase.from('user_groups').update({ requirement_ids: updatedGroups[overContainer].requirementIds }).eq('id', overContainer).eq('user_id', session.user.id);
+                    }
+                }
+            });
+        }
     },
 
     reorderList: (oldIndex, newIndex) => {
@@ -439,8 +613,40 @@ export const useExamStore = create<ExamStore>((set, get) => ({
         }
     },
 
-    addMedia: async (reqId, type, title, url, folderId) => {
-        const tempId = uuidv4(); // Generate valid UUID
+    updateMediaChapters: async (reqId, mediaId, chapters) => {
+        set((state) => {
+            const currentState = state.userState[reqId];
+            if (!currentState) return state;
+
+            const media = (currentState.media || []).map(m =>
+                m.id === mediaId ? { ...m, chapters } : m
+            );
+
+            return {
+                userState: {
+                    ...state.userState,
+                    [reqId]: {
+                        ...currentState,
+                        media
+                    }
+                }
+            };
+        });
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            await supabase.from('user_media').update({ chapters }).eq('id', mediaId).eq('user_id', session.user.id);
+        }
+    },
+
+    addMedia: async (reqId, type, title, url, folderId, notes = '', chapters = '') => {
+        const tempId = uuidv4();
+        const { userState } = get();
+        const currentState = userState[reqId] || { reqId, status: 'todo', notes: '', media: [], folders: [] };
+
+        // Calculate next display order
+        const maxOrder = Math.max(0, ...currentState.media.map(m => m.displayOrder || 0));
+        const newOrder = maxOrder + 1;
 
         set((state) => {
             const currentState = state.userState[reqId] || { reqId, status: 'todo', notes: '', media: [], folders: [] };
@@ -450,7 +656,7 @@ export const useExamStore = create<ExamStore>((set, get) => ({
                     ...state.userState,
                     [reqId]: {
                         ...currentState,
-                        media: [...currentMedia, { id: tempId, type, title, url, notes: '', folderId }]
+                        media: [...currentMedia, { id: tempId, type, title, url, notes, chapters, folderId, displayOrder: newOrder }]
                     }
                 }
             };
@@ -465,13 +671,50 @@ export const useExamStore = create<ExamStore>((set, get) => ({
                 type,
                 title,
                 url,
-                notes: '',
-                folder_id: folderId || null // Explicitly handle undefined
+                notes,
+                chapters,
+                folder_id: folderId || null,
+                display_order: newOrder
             });
 
             if (error) {
                 console.error('Failed to add media:', error);
-                // Revert optimistic update? For now just log.
+            }
+        }
+    },
+
+    updateMedia: async (reqId, mediaId, data) => {
+        set((state) => {
+            const currentState = state.userState[reqId];
+            if (!currentState) return state;
+
+            const media = (currentState.media || []).map(m =>
+                m.id === mediaId ? { ...m, ...data } : m
+            );
+
+            return {
+                userState: {
+                    ...state.userState,
+                    [reqId]: {
+                        ...currentState,
+                        media
+                    }
+                }
+            };
+        });
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            const updatePayload: any = {};
+            if (data.title !== undefined) updatePayload.title = data.title;
+            if (data.url !== undefined) updatePayload.url = data.url;
+            if (data.notes !== undefined) updatePayload.notes = data.notes;
+            if (data.chapters !== undefined) updatePayload.chapters = (data as any).chapters;
+            if (data.folderId !== undefined) updatePayload.folder_id = data.folderId || null;
+
+            const { error } = await supabase.from('user_media').update(updatePayload).eq('id', mediaId).eq('user_id', session.user.id);
+            if (error) {
+                console.error('Failed to update media:', error);
             }
         }
     },
@@ -497,6 +740,46 @@ export const useExamStore = create<ExamStore>((set, get) => ({
             if (error) {
                 console.error('Failed to remove media:', error);
             }
+        }
+    },
+
+    reorderMedia: async (reqId, activeId, overId, folderId) => {
+        const { userState } = get();
+        const currentState = userState[reqId];
+        if (!currentState) return;
+
+        const mediaList = [...currentState.media];
+        const oldIndex = mediaList.findIndex(m => m.id === activeId);
+        const newIndex = mediaList.findIndex(m => m.id === overId);
+
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const [movedItem] = mediaList.splice(oldIndex, 1);
+        mediaList.splice(newIndex, 0, movedItem);
+
+        // Update displayOrder for all items in this context
+        const updatedMedia = mediaList.map((m, index) => ({
+            ...m,
+            displayOrder: index
+        }));
+
+        set((state) => ({
+            userState: {
+                ...state.userState,
+                [reqId]: {
+                    ...state.userState[reqId],
+                    media: updatedMedia
+                }
+            }
+        }));
+
+        // Persistence
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            // Update all orders in parallel
+            await Promise.all(updatedMedia.map(m =>
+                supabase.from('user_media').update({ display_order: m.displayOrder }).eq('id', m.id).eq('user_id', session.user.id)
+            ));
         }
     },
 
@@ -553,6 +836,116 @@ export const useExamStore = create<ExamStore>((set, get) => ({
             if (error) {
                 console.error('Failed to remove folder:', error);
             }
+        }
+    },
+
+    exportData: () => {
+        const { userState, groups, listOrder } = get();
+
+        // We only export things that the user created
+        const exportObj = {
+            version: '1.0',
+            exportedAt: new Date().toISOString(),
+            userState,
+            groups,
+            listOrder
+        };
+
+        return JSON.stringify(exportObj, null, 2);
+    },
+
+    importData: async (jsonData) => {
+        try {
+            const importObj = JSON.parse(jsonData);
+            const { userState: importedState, groups: importedGroups, listOrder: importedListOrder } = importObj;
+
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('No session');
+            const userId = session.user.id;
+
+            // ID Mapping to avoid conflicts
+            const folderIdMap: Record<string, string> = {};
+            const groupIdMap: Record<string, string> = {};
+
+            // 1. Prepare Folders and Media with new IDs
+            const newFolders: any[] = [];
+            const newMedia: any[] = [];
+            const newProgress: any[] = [];
+
+            for (const reqIdStr in importedState) {
+                const reqId = parseInt(reqIdStr);
+                const state = importedState[reqIdStr];
+
+                // Progress
+                newProgress.push({
+                    user_id: userId,
+                    requirement_id: reqId,
+                    status: 'todo', // We reset status per user request, but keep notes
+                    notes: state.notes || ''
+                });
+
+                // Folders
+                state.folders?.forEach((f: any) => {
+                    const newId = uuidv4();
+                    folderIdMap[f.id] = newId;
+                    newFolders.push({
+                        id: newId,
+                        user_id: userId,
+                        requirement_id: reqId,
+                        name: f.name
+                    });
+                });
+
+                // Media
+                state.media?.forEach((m: any) => {
+                    newMedia.push({
+                        id: uuidv4(),
+                        user_id: userId,
+                        requirement_id: reqId,
+                        type: m.type,
+                        title: m.title,
+                        url: m.url,
+                        notes: m.notes || null,
+                        folder_id: m.folderId ? folderIdMap[m.folderId] : null,
+                        display_order: m.displayOrder || 0
+                    });
+                });
+            }
+
+            // 2. Prepare Groups with new IDs
+            const newGroups: any[] = [];
+            for (const gid in importedGroups) {
+                const group = importedGroups[gid];
+                const newId = uuidv4();
+                groupIdMap[gid] = newId;
+                newGroups.push({
+                    id: newId,
+                    user_id: userId,
+                    name: group.name,
+                    requirement_ids: group.requirementIds,
+                    collapsed: group.collapsed || false
+                });
+            }
+
+            // 3. Batch insert to Supabase
+            if (newProgress.length > 0) await supabase.from('user_progress').upsert(newProgress);
+            if (newFolders.length > 0) await supabase.from('user_folders').insert(newFolders);
+            if (newMedia.length > 0) await supabase.from('user_media').insert(newMedia);
+            if (newGroups.length > 0) await supabase.from('user_groups').insert(newGroups);
+
+            // 4. Update List Order
+            const newListOrder = importedListOrder.map((id: any) => {
+                if (typeof id === 'string' && groupIdMap[id]) return groupIdMap[id];
+                return id;
+            });
+            await get().syncSettings({ list_order: newListOrder });
+
+            // 5. Reload Store
+            await get().init();
+
+        } catch (e) {
+            console.error('Import failed:', e);
+            throw e;
         }
     },
 

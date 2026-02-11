@@ -5,6 +5,13 @@ import { ExamRequirement, LearningStatus } from '@/types/exam';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, Circle, Clock, GripVertical } from 'lucide-react';
 
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
+
 interface RequirementItemProps {
     requirement: ExamRequirement;
     isSelected: boolean;
@@ -12,6 +19,7 @@ interface RequirementItemProps {
     status?: LearningStatus;
     onSelect: (multi: boolean, range: boolean) => void;
     onClick: () => void;
+    isNested?: boolean;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string; borderColor: string }> = {
@@ -26,7 +34,8 @@ export const RequirementItem = memo(({
     isActive,
     status = 'todo',
     onSelect,
-    onClick
+    onClick,
+    isNested = false
 }: RequirementItemProps) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG.todo;
     const Icon = config.icon;
@@ -73,9 +82,19 @@ export const RequirementItem = memo(({
             </div>
 
             {/* NOME */}
-            <div className="text-sm font-semibold text-slate-700 truncate pr-2 uppercase">
-                {requirement.name}
-            </div>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div className={cn(
+                        "text-sm font-semibold text-slate-700 truncate pr-2 uppercase transition-all",
+                        isNested && "pl-8"
+                    )}>
+                        {requirement.name}
+                    </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{requirement.name}</p>
+                </TooltipContent>
+            </Tooltip>
 
             {/* QTD */}
             <div className="text-sm font-medium text-slate-500 text-center">

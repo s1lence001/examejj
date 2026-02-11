@@ -10,15 +10,29 @@ interface VideoEmbedProps {
 }
 
 function getYouTubeId(url: string): string | null {
-    const patterns = [
-        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-        /youtube\.com\/shorts\/([^&\n?#]+)/,
-    ];
-    for (const pattern of patterns) {
-        const match = url.match(pattern);
-        if (match) return match[1];
-    }
-    return null;
+    const pattern = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([^&\s?]+)/;
+    const match = url.match(pattern);
+    return match ? match[1] : null;
+}
+
+function getYouTubeStartTime(url: string): number {
+    if (!url) return 0;
+    const match = url.match(/[?&]t=([^&]+)/);
+    if (!match) return 0;
+
+    const timeStr = match[1];
+    if (/^\d+$/.test(timeStr)) return parseInt(timeStr);
+
+    let totalSeconds = 0;
+    const hMatch = timeStr.match(/(\d+)h/);
+    const mMatch = timeStr.match(/(\d+)m/);
+    const sMatch = timeStr.match(/(\d+)s/);
+
+    if (hMatch) totalSeconds += parseInt(hMatch[1]) * 3600;
+    if (mMatch) totalSeconds += parseInt(mMatch[1]) * 60;
+    if (sMatch) totalSeconds += parseInt(sMatch[1]);
+
+    return totalSeconds;
 }
 
 function getTikTokId(url: string): string | null {
@@ -35,6 +49,7 @@ export function VideoEmbed({ conteudo, onRemove }: VideoEmbedProps) {
 
     const tipo = tipoConfig[conteudo.tipo];
     const youtubeId = conteudo.plataforma === 'youtube' ? getYouTubeId(conteudo.url) : null;
+    const youtubeStartTime = youtubeId ? getYouTubeStartTime(conteudo.url) : 0;
     const tiktokId = conteudo.plataforma === 'tiktok' ? getTikTokId(conteudo.url) : null;
 
     return (
@@ -50,7 +65,7 @@ export function VideoEmbed({ conteudo, onRemove }: VideoEmbedProps) {
             <div className="video-container">
                 {youtubeId ? (
                     <iframe
-                        src={`https://www.youtube.com/embed/${youtubeId}`}
+                        src={`https://www.youtube.com/embed/${youtubeId}?autoplay=0${youtubeStartTime > 0 ? `&start=${youtubeStartTime}` : ''}`}
                         allowFullScreen
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     />
