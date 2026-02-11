@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
-import { ExamDataProvider } from "@/hooks/useExamData";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Exame Faixa Azul - Jiu-Jitsu",
-  description: "Sistema de acompanhamento para exame de graduação de faixa azul",
+  title: "Jiu-Jitsu Blue Belt Exam",
+  description: "Official Requirement Tracker",
 };
 
 export default function RootLayout({
@@ -17,12 +16,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="dark">
-      <body className={inter.className}>
+    <html lang="pt-BR">
+      <body className={`${inter.className} h-screen overflow-hidden bg-white`}>
         <AuthProvider>
-          <ExamDataProvider>
-            {children}
-          </ExamDataProvider>
+          {children}
         </AuthProvider>
       </body>
     </html>

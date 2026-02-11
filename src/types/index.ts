@@ -54,3 +54,30 @@ export interface TecnicaComStatus extends Tecnica {
   variacoesDominadas: number;
   totalVariacoes: number;
 }
+
+// ===== SISTEMA DE MODELOS DE REQUISITOS =====
+
+export interface Requisito {
+  id: number;
+  nome: string;
+  qtd: string | number;
+  cor?: string; // Cor personalizada da linha
+  grupo?: string; // ID do grupo ao qual pertence
+}
+
+export interface GrupoRequisitos {
+  id: string;
+  nome: string;
+  cor?: string;
+  requisitosIds: number[]; // IDs dos requisitos neste grupo
+}
+
+export interface ModeloRequisitos {
+  id: string;
+  nome: string;
+  tipo: 'original' | 'personalizado';
+  requisitos: Requisito[];
+  grupos: GrupoRequisitos[];
+  criadoEm: string;
+  modificadoEm: string;
+}
