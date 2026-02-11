@@ -458,16 +458,21 @@ export const useExamStore = create<ExamStore>((set, get) => ({
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            await supabase.from('user_media').insert({
-                id: tempId, // Use the same UUID
+            const { error } = await supabase.from('user_media').insert({
+                id: tempId,
                 user_id: session.user.id,
                 requirement_id: reqId,
                 type,
                 title,
                 url,
                 notes: '',
-                folder_id: folderId
+                folder_id: folderId || null // Explicitly handle undefined
             });
+
+            if (error) {
+                console.error('Failed to add media:', error);
+                // Revert optimistic update? For now just log.
+            }
         }
     },
 
@@ -488,7 +493,10 @@ export const useExamStore = create<ExamStore>((set, get) => ({
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            await supabase.from('user_media').delete().eq('id', mediaId).eq('user_id', session.user.id);
+            const { error } = await supabase.from('user_media').delete().eq('id', mediaId).eq('user_id', session.user.id);
+            if (error) {
+                console.error('Failed to remove media:', error);
+            }
         }
     },
 
@@ -509,12 +517,16 @@ export const useExamStore = create<ExamStore>((set, get) => ({
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            await supabase.from('user_folders').insert({
-                id: tempId, // Use the same UUID
+            const { error } = await supabase.from('user_folders').insert({
+                id: tempId,
                 user_id: session.user.id,
                 requirement_id: reqId,
                 name
             });
+
+            if (error) {
+                console.error('Failed to create folder:', error);
+            }
         }
         return tempId;
     },
