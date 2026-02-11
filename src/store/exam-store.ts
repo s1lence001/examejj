@@ -428,6 +428,32 @@ export const useExamStore = create<ExamStore>((set, get) => ({
         }
     },
 
+    updateMediaNotes: async (reqId, mediaId, notes) => {
+        set((state) => {
+            const currentState = state.userState[reqId];
+            if (!currentState) return state;
+
+            const media = (currentState.media || []).map(m =>
+                m.id === mediaId ? { ...m, notes } : m
+            );
+
+            return {
+                userState: {
+                    ...state.userState,
+                    [reqId]: {
+                        ...currentState,
+                        media
+                    }
+                }
+            };
+        });
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            await supabase.from('user_media').update({ notes }).eq('id', mediaId).eq('user_id', session.user.id);
+        }
+    },
+
     addMedia: async (reqId, type, title, url, folderId) => {
         const tempId = generateId(); // Optimistic ID
 
